@@ -55,10 +55,6 @@ def booking_slot(event):
     return (event['organiser'], event['title'].casefold(), event['date'], event['time'])
 
 
-def saved_key(event):
-    return '|'.join(event[k] for k in ('organiser', 'url', 'date', 'time'))
-
-
 # SU booking links take precedence when both organisers list the same activity.
 su_slots = {booking_slot(e): e for e in data['events'] if e['source'] == 'union' and not e.get('discoveredOnProfile')}
 def merge_listing(primary, other):
@@ -67,8 +63,6 @@ def merge_listing(primary, other):
     hosts = set(primary.get('cohosts', [])) | set(other.get('cohosts', [])) | {other['organiser']}
     primary['cohosts'] = sorted(hosts - {primary['organiser']})
     primary['tags'] = sorted(set(primary['tags'] + other.get('tags', [])))
-    primary['aliases'] = sorted((set(primary.get('aliases', [])) | set(other.get('aliases', []))
-                                 | {saved_key(other)}) - {saved_key(primary)})
     for field in ('endDate', 'endTime'):
         if other.get(field) and not primary.get(field):
             primary[field] = other[field]
@@ -93,7 +87,6 @@ for e in data['events']:
                        if name in e['title'].casefold() and oid in groups), None)
         if not cohost:
             continue
-        e['aliases'] = [saved_key(e)]
         e['organiser'] = cohost
     if e['source'] == 'arts':
         continue

@@ -41,10 +41,7 @@ function link(text, url) {
 let groups = new Map(),
   events = [],
   view = "events",
-  limit = 45,
-  saved = new Set();
-let records = [];
-let storageWritable = true;
+  limit = 45;
 function options(id, label, items) {
   const el = get(id);
   el.replaceChildren(new Option(label, ""));
@@ -104,60 +101,9 @@ function activity(e, org) {
   if (/talk|panel|lecture|seminar|discussion/.test(title)) return "Talk";
   return org.group === "Sports" ? "Sport" : "Other";
 }
-function eventKey(e) {
-  return [e.organiser, e.url, e.date, e.time].join("|");
-}
-const slotCounts = new Map();
-function bookmarkSlot(e) {
-  return JSON.stringify([e.organiser, e.date, e.time, e.title.toLowerCase()]);
-}
-function bookmarkKeys(e) {
-  const keys = [eventKey(e), ...(e.aliases || [])];
-  const slot = bookmarkSlot(e);
-  if (slotCounts.get(slot) === 1) keys.push(slot);
-  return keys;
-}
-function restoreBookmarks() {
-  if (!storageWritable) return;
-  let raw;
-  try {
-    raw = localStorage.getItem("notts-saved") || "[]";
-    records = JSON.parse(raw).map(item => Array.isArray(item) ? item : [item]);
-  } catch {}
-  const today = dayKey(new Date());
-  const direct = new Map(), aliases = new Map(), slots = new Map();
-  for (const e of events) {
-    if ((e.endDate || e.date) < today) continue;
-    direct.set(eventKey(e), e);
-    direct.set(eventKey(e) + "|" + e.title, e);
-    for (const key of e.aliases || []) {
-      aliases.set(key,e);
-      aliases.set(key + "|" + e.title,e);
-    }
-    if (slotCounts.get(bookmarkSlot(e)) === 1) slots.set(bookmarkSlot(e),e);
-  }
-  saved.clear();
-  records = records.map(record => {
-    const e = record.map(key => direct.get(key)).find(Boolean) ||
-              record.map(key => aliases.get(key)).find(Boolean) ||
-              record.map(key => slots.get(key)).find(Boolean);
-    if (!e) return record;
-    saved.add(eventKey(e));
-    return [...new Set([...bookmarkKeys(e), ...record.filter(key => !key.startsWith("["))])];
-  });
-  if (JSON.stringify(records) !== raw) storeBookmarks();
-}
-function storeBookmarks() {
-  try {
-    localStorage.setItem("notts-saved", JSON.stringify(records));
-  } catch {
-    storageWritable = false;
-  }
-}
 function card(e, o) {
   const item = node("article"),
-    body = node("div"),
-    side = node("div", "side");
+    body = node("div");
   const title = node("h3");
   title.append(link(e.title, e.url));
   const category = activity(e, o);
@@ -170,28 +116,8 @@ function card(e, o) {
     title,
     node("p", "meta", [o.name, e.venue].filter(Boolean).join(" · ")),
   );
-  const key = eventKey(e);
-  const button = node("button", "save", saved.has(key) ? "★" : "☆");
-  button.setAttribute(
-    "aria-label",
-    (saved.has(key) ? "Unsave " : "Save ") + e.title,
-  );
-  button.setAttribute("aria-pressed", saved.has(key));
-  button.onclick = () => {
-    restoreBookmarks();
-    if (saved.has(key)) {
-      saved.delete(key);
-      records = records.filter(record => record[0] !== key);
-    } else {
-      saved.add(key);
-      records.push(bookmarkKeys(e));
-    }
-    storeBookmarks();
-    render();
-  };
-  side.append(button);
   item.className = "event-card";
-  item.append(body, logo(o), side);
+  item.append(body, logo(o));
   return item;
 }
 function orgCard(o) {
@@ -240,9 +166,7 @@ function render() {
     el.hidden = directory;
   get("title").textContent = directory
     ? "Groups"
-    : view === "saved"
-      ? "Saved events"
-      : {
+    : {
           Societies: "Society events",
           Sports: "Sport",
           Careers: "Careers events",
@@ -295,7 +219,6 @@ function render() {
       "aria-pressed",
       chip.dataset.activity === get("activity").value,
     );
-  get("savedcount").textContent = saved.size || "";
   for (const b of document.querySelectorAll("[data-view]"))
     b.setAttribute("aria-pressed", b.dataset.view === view);
   const list = get("list");
@@ -322,7 +245,6 @@ function render() {
           (!get("org").value || o.id === get("org").value || e.cohosts?.includes(get("org").value)) &&
           (!get("activity").value ||
             get("activity").value === activity(e, o)) &&
-          (view !== "saved" || saved.has(eventKey(e))) &&
           [e.title, e.venue, o.name, o.category, ...(e.cohosts || []).map(id => groups.get(id)?.name), ...tags]
             .join(" ")
             .toLowerCase()
@@ -384,9 +306,7 @@ function render() {
       node(
         "p",
         "meta",
-        view === "saved"
-          ? "No saved events match. Save an event from Events to find it here."
-          : "No matches. Try another date or clear your filters.",
+        "No matches. Try another date or clear your filters.",
       ),
     );
   get("more").hidden = matches.length <= limit;
@@ -463,11 +383,6 @@ async function start() {
         (a.time || "99").localeCompare(b.time || "99") ||
         a.title.localeCompare(b.title),
     );
-  for (const event of events) {
-    const slot = bookmarkSlot(event);
-    slotCounts.set(slot, (slotCounts.get(slot) || 0) + 1);
-  }
-  restoreBookmarks();
   const orgs = [...groups.values()];
   options(
     "kind",
@@ -499,7 +414,8 @@ async function start() {
   const pick = (selector, id, key) => {
     for (const button of document.querySelectorAll(selector))
       button.onclick = () => {
-        get(id).value = button.dataset[key];
+        const value = button.dataset[key];
+        get(id).value = id === "when" && get(id).value === value ? "" : value;
         if (id === "when") get("date").value = "";
         get(id).dispatchEvent(new Event("input"));
       };

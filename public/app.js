@@ -287,7 +287,7 @@ function render() {
           (e.endDate || e.date) >= today &&
           dateMatch(e, today) &&
           (!kind || kind === o.group || e.cohosts?.some(id => groups.get(id)?.group === kind)) &&
-          (!topic || o.category === topic || tags.includes(topic)) &&
+          (!topic || o.category === topic || tags.includes(topic) || e.cohosts?.some(id => groups.get(id)?.category === topic)) &&
           (!get("org").value || o.id === get("org").value || e.cohosts?.includes(get("org").value)) &&
           (!get("activity").value ||
             get("activity").value === activity(e, o)) &&
@@ -366,7 +366,7 @@ function groupOptions() {
   const tags =
     view === "organisers"
       ? []
-      : events.filter((e) => ids.has(e.organiser)).flatMap((e) => e.tags || []);
+      : events.filter((e) => ids.has(e.organiser) || e.cohosts?.some(id => ids.has(id))).flatMap((e) => e.tags || []);
   options(
     "topic",
     "All interests",

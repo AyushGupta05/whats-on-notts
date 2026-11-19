@@ -22,9 +22,19 @@ BASE = 'https://whatsonnotts.com/'
 data = json.loads((SOURCE / 'data.json').read_text())
 groups = {o['id']: o for o in data['organisers']}
 today = datetime.now(ZoneInfo("Europe/London")).date()
+for oid, evidence in json.loads((PROJECT / 'sources/social.json').read_text()).items():
+    group = groups.get(oid)
+    if group:
+        group['instagram'] = group.get('instagram') or evidence['instagram']
+        if evidence['lastActivity'] > group.get('lastActivity', ''):
+            group.update(lastActivity=evidence['lastActivity'], lastActivityUrl=evidence['lastActivityUrl'])
 for notice in json.loads((PROJECT / 'sources/announcements.json').read_text()):
     if notice['date'] >= today.isoformat() and notice['organiser'] in groups:
         data['events'].append(notice)
+    elif notice['date'] < today.isoformat():
+        for oid in [notice['organiser'], *notice.get('cohosts', [])]:
+            if oid in groups and notice['date'] > groups[oid].get('lastActivity', ''):
+                groups[oid].update(lastActivity=notice['date'], lastActivityUrl=notice['url'])
 for avatar in (ROOT / 'assets/groups').glob('*.png'):
     organiser = groups.get(avatar.stem)
     if organiser:
@@ -65,6 +75,10 @@ for e in data['events']:
         continue
     preferred = su_slots.get(booking_slot(e))
     if preferred and e['source'] in {'hacksoc', 'newtheatre', 'robotics', 'living', 'announcement', 'collective'}:
+        preferred['cohosts'] = sorted(set(preferred.get('cohosts', []) + e.get('cohosts', [])))
+        preferred['tags'] = sorted(set(preferred['tags'] + e.get('tags', [])))
+        if e.get('endTime') and not preferred.get('endTime'):
+            preferred['endTime'] = e['endTime']
         preferred.setdefault('aliases', []).extend([saved_key(e), *e.get('aliases', [])])
         continue
     e.pop('price', None)
@@ -79,7 +93,7 @@ cutoff = (today - timedelta(days=180)).isoformat()
 for o in groups.values():
     o.pop('profileEvents', None)
     o['active'] = (not o['id'].startswith('su-') or o['id'] in upcoming
-                   or o.get('lastEvent', '') >= cutoff)
+                   or max(o.get('lastEvent', ''), o.get('lastActivity', '')) >= cutoff)
 
 (ROOT / 'data.json').write_text(json.dumps(data,ensure_ascii=False,separators=(',',':')))
 items = []

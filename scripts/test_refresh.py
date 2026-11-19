@@ -196,6 +196,18 @@ class RefreshFailureTests(unittest.TestCase):
         )
         self.assertEqual(result["organisers"][0]["source"], "union")
 
+    def test_completed_event_preserves_cohost_activity(self):
+        past = dict(self.row("Joint workshop", "collective"), date="2026-01-01", cohosts=["su-682"])
+        self.cached["events"].append(past)
+        self.cached["organisers"].append({"id": "su-682", "source": "union"})
+        self.output.write_text(json.dumps(self.cached))
+        self.loaders["living"].side_effect = None
+        self.loaders["living"].return_value = ([{"id": "resx"}], [self.row("Next", "living")])
+        refresh.main()
+        groups = {o["id"]: o for o in json.loads(self.output.read_text())["organisers"]}
+        self.assertEqual(groups["su-682"]["lastActivityUrl"], past["url"])
+        self.assertEqual(groups["resx"]["lastActivity"], past["date"])
+
     def test_total_failure_leaves_the_previous_snapshot_intact(self):
         before = self.output.read_bytes()
         with self.assertRaisesRegex(RuntimeError, "Every source failed"):

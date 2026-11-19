@@ -260,8 +260,6 @@ def union(previous, now):
         list(pool.map(enrich, stale))
     for owner in orgs.values():
         events.extend(owner.get("profileEvents", []))
-    if "su-241" in orgs and not orgs["su-241"]["instagram"]:
-        orgs["su-241"]["instagram"] = "https://www.instagram.com/uonacs/"
     return list(orgs.values()), events
 
 
@@ -679,8 +677,8 @@ def collective(previous, now):
             day, time = split_date(starts.isoformat())
         else:
             day, time = starts.isoformat(), ""
-        last = (ends.astimezone(UK).date() if isinstance(ends, datetime)
-                else max(starts, ends - timedelta(days=1)))
+        last = max(date.fromisoformat(day), date.fromisoformat(split_date((ends - timedelta(microseconds=1)).isoformat())[0])
+                   if isinstance(ends, datetime) else ends - timedelta(days=1))
         if last < now.date():
             continue
         match = re.search(r"https://(?:luma\.com|lu\.ma)/[a-zA-Z0-9_-]+", str(item.get("DESCRIPTION", "")))
@@ -698,7 +696,7 @@ def collective(previous, now):
                 venue = "A41, Sir Clive Granger Building"
         events.append(event(title, day, time, venue, UNKNOWN, owner, url, tags,
                             endDate=last.isoformat(), cohosts=cohosts,
-                            endTime=ends.astimezone(UK).strftime("%H:%M") if isinstance(ends, datetime) and day == last.isoformat() else ""))
+                            endTime=ends.astimezone(UK).strftime("%H:%M") if "DTEND" in item and isinstance(ends, datetime) and day == last.isoformat() else ""))
     return [host], events
 
 
@@ -793,6 +791,18 @@ def main():
                 ),
                 source="union",
             )
+    # Preserve completed listings after they roll off the upcoming feeds.
+    for oid, group in all_orgs.items():
+        for field in ("lastActivity", "lastActivityUrl"):
+            if field in previous.get(oid, {}):
+                group[field] = previous[oid][field]
+    for e in old.get("events", []):
+        if e["date"] > now.date().isoformat():
+            continue
+        for oid in [e["organiser"], *e.get("cohosts", [])]:
+            group = all_orgs.get(oid)
+            if group and e["date"] > group.get("lastActivity", ""):
+                group.update(lastActivity=e["date"], lastActivityUrl=e["url"])
     output = {
         "updated": now.isoformat(timespec="seconds"),
         "organisers": list(all_orgs.values()),

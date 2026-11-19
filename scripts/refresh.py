@@ -221,7 +221,7 @@ def living(previous, now):
     )
 
     def details(card):
-        a = card.select_one("figure a[href]")
+        a = card.select_one(":scope figure a[href]")
         d = text(card.select_one("figcaption p"))
         dt = datetime.strptime(
             re.sub(r"(\d)(st|nd|rd|th)\b", r"\1", d), "%d %b %Y | %I:%M%p"
@@ -263,7 +263,7 @@ def living(previous, now):
         raise ValueError("Student Living pagination unavailable")
     count = int(total[1].replace(",", ""))
     def event_cards(document):
-        return [card for card in document.select("article") if card.select_one("figure a[href*='/event/']")]
+        return [card for card in document.select("article") if card.select_one(":scope figure a[href*='/event/']")]
 
     first_cards = event_cards(first)
     step = len(first_cards)
@@ -416,7 +416,7 @@ def university(previous, now, source="university"):
         seen.add(url)
         s = page(url)
         for item in s.select(".sys_subitem"):
-            a = item.select_one(".sys_events-subheading a")
+            a = item.select_one(":scope .sys_events-subheading a")
             if a is None:
                 continue
             detail = urljoin(base, a["href"])

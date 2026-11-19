@@ -89,7 +89,10 @@ def profile_info(o, now):
             "uonsu", "p", "stories", "explore", "reel", "reels",
         }:
             instagram = "https://www.instagram.com/" + match[1] + "/"
-        parts = urlparse(href)
+        try:
+            parts = urlparse(href)
+        except ValueError:
+            continue
         if (parts.scheme == "https" and parts.netloc in {"luma.com", "lu.ma"}
                 and re.fullmatch(r"/[a-zA-Z0-9_-]+/?", parts.path)):
             urls.add("https://luma.com" + parts.path.rstrip("/"))
@@ -112,7 +115,7 @@ def profile_info(o, now):
                     found.append(event(record["name"], day, time,
                                        venue.get("name") if isinstance(venue, dict) else "",
                                        UNKNOWN, o["id"], url, [o["category"]],
-                                       endDate=last, endTime=until if last==day and record.get("endDate") else ""))
+                                       discoveredOnProfile=True, endDate=last, endTime=until if last == day and record.get("endDate") else ""))
         except (requests.RequestException, ValueError, TypeError, KeyError):
             if url in cached:
                 found.append(cached[url])
@@ -696,7 +699,7 @@ def collective(previous, now):
                 venue = "A41, Sir Clive Granger Building"
         events.append(event(title, day, time, venue, UNKNOWN, owner, url, tags,
                             endDate=last.isoformat(), cohosts=cohosts,
-                            endTime=ends.astimezone(UK).strftime("%H:%M") if "DTEND" in item and isinstance(ends, datetime) and day == last.isoformat() else ""))
+                            endTime=split_date(ends.isoformat())[1] if "DTEND" in item and isinstance(ends, datetime) and day == last.isoformat() else ""))
     return [host], events
 
 

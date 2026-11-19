@@ -7,8 +7,74 @@
     "endTime": "21:30",
     "venue": "Pope C17",
     "url": "https://su.nottingham.ac.uk/activities/view/Spacesoc",
-    "tags": ["Social", "Film", "Open to all"],
+    "tags": [
+      "Social",
+      "Film",
+      "Open to all"
+    ],
     "source": "announcement",
     "evidence": "SpaceSoc Discord announcement supplied on 19 November 2026"
+  },
+  {
+    "organiser": "su-404",
+    "title": "SB/Keg bar crawl",
+    "date": "2026-11-19",
+    "time": "",
+    "venue": "SB/Keg, then Rock City",
+    "url": "https://www.instagram.com/sb_agrics/p/DfhKRfzMnZD/",
+    "source": "announcement",
+    "tags": [
+      "Social"
+    ]
+  },
+  {
+    "organiser": "su-404",
+    "title": "Pub social at the Red Lion",
+    "date": "2026-11-23",
+    "time": "",
+    "venue": "Red Lion",
+    "url": "https://www.instagram.com/sb_agrics/p/DfhKRfzMnZD/",
+    "source": "announcement",
+    "tags": [
+      "Social"
+    ]
+  },
+  {
+    "organiser": "su-404",
+    "title": "Farm tour at the Allerton Project",
+    "date": "2026-11-25",
+    "time": "",
+    "venue": "Allerton Project",
+    "url": "https://www.instagram.com/sb_agrics/p/DfhKRfzMnZD/",
+    "source": "announcement",
+    "tags": [
+      "Farm visit"
+    ]
+  },
+  {
+    "organiser": "su-404",
+    "title": "Pub social at the Red Lion",
+    "date": "2026-11-30",
+    "time": "",
+    "venue": "Red Lion",
+    "url": "https://www.instagram.com/sb_agrics/p/DfhKRfzMnZD/",
+    "source": "announcement",
+    "tags": [
+      "Social"
+    ]
+  },
+  {
+    "organiser": "su-406",
+    "title": "Animal Science fancy-dress house party",
+    "date": "2026-11-21",
+    "time": "21:00",
+    "endDate": "2026-11-22",
+    "endTime": "03:00",
+    "venue": "See organiser’s post for location",
+    "url": "https://www.instagram.com/uon_animal_science/p/DfzrWg0MDmN/",
+    "source": "announcement",
+    "tags": [
+      "Social"
+    ]
   }
 ]

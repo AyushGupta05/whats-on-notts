@@ -29,7 +29,7 @@ for oid, evidence in json.loads((PROJECT / 'sources/social.json').read_text()).i
         if evidence['lastActivity'] > group.get('lastActivity', ''):
             group.update(lastActivity=evidence['lastActivity'], lastActivityUrl=evidence['lastActivityUrl'])
 for notice in json.loads((PROJECT / 'sources/announcements.json').read_text()):
-    if notice['date'] >= today.isoformat() and notice['organiser'] in groups:
+    if (notice.get('endDate') or notice['date']) >= today.isoformat() and notice['organiser'] in groups:
         data['events'].append(notice)
     elif notice['date'] < today.isoformat():
         for oid in [notice['organiser'], *notice.get('cohosts', [])]:
@@ -60,7 +60,7 @@ def saved_key(event):
 
 
 # SU booking links take precedence when both organisers list the same activity.
-su_slots = {booking_slot(e): e for e in data['events'] if e['source'] == 'union'}
+su_slots = {booking_slot(e): e for e in data['events'] if e['source'] == 'union' and not e.get('discoveredOnProfile')}
 published = []
 collaborators = {'orientalsoc': 'su-555', 'travelsoc': 'su-230'}
 for e in data['events']:
@@ -74,7 +74,7 @@ for e in data['events']:
     if e['source'] == 'arts':
         continue
     preferred = su_slots.get(booking_slot(e))
-    if preferred and e['source'] in {'hacksoc', 'newtheatre', 'robotics', 'living', 'announcement', 'collective'}:
+    if preferred and (e.get('discoveredOnProfile') or e['source'] in {'hacksoc', 'newtheatre', 'robotics', 'living', 'announcement', 'collective'}):
         preferred['cohosts'] = sorted(set(preferred.get('cohosts', []) + e.get('cohosts', [])))
         preferred['tags'] = sorted(set(preferred['tags'] + e.get('tags', [])))
         if e.get('endTime') and not preferred.get('endTime'):
@@ -111,7 +111,7 @@ for e in data['events']:
         time += '–' + escape(e['endTime'])
     organiser = escape(groups[e['organiser']]['name'])
     source = escape(e['url'], quote=True)
-    action = 'Society website ↗' if e['source'] == 'announcement' else 'Event details &amp; booking ↗'
+    action = 'Society website ↗' if e['source'] == 'announcement' and e['url'] == groups[e['organiser']]['url'] else 'Event details &amp; booking ↗'
     tags = ' · '.join(escape(t) for t in e['tags'])
     description = f'{organiser} · {date} {time} · {venue}'
     (ROOT / path).write_text(f'''<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{title} · What’s On Notts</title><meta name="description" content="{description}"><link rel="canonical" href="{canonical}"><link rel="stylesheet" href="../style.css"><link rel="icon" href="../assets/profile.png"></head><body><main class="detail"><a class="brand" href="../"><img src="../assets/flag.svg" alt="">What’s On Notts</a><p class="time">{date} {time}</p><h1>{title}</h1><p>{organiser}</p><p>{venue}</p><p class="meta">{tags}</p><a class="book" href="{source}">{action}</a></main></body></html>''')

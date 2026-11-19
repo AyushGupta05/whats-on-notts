@@ -77,6 +77,16 @@ class CalendarParsingTests(unittest.TestCase):
             {e["title"]: e["endDate"] for e in result}, {r[0]: r[3] for r in dates}
         )
 
+    def test_collective_omitted_end_stays_unknown(self):
+        lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "BEGIN:VEVENT", "UID:one",
+                 "DTSTART:20261124T170000Z", "SUMMARY:Workshop",
+                 "DESCRIPTION:https://luma.com/workshop", "END:VEVENT", "END:VCALENDAR"]
+        with patch.object(refresh, "get") as fetch:
+            fetch.return_value.content = "\r\n".join(lines).encode()
+            _, rows = refresh.collective({}, datetime(2026, 11, 19, tzinfo=refresh.UK))
+        self.assertEqual(rows[0]["endDate"], "")
+        self.assertEqual(rows[0]["endTime"], "")
+
     def test_shortened_date_ranges(self):
         self.assertEqual(
             refresh.academic_dates("13 - 16/12/2026"), ("2026-12-13", "2026-12-16")

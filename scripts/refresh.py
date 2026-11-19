@@ -710,7 +710,7 @@ def collective(previous, now):
             if "Sir Clive Granger Building" in venue:
                 venue = "A41, Sir Clive Granger Building"
         events.append(event(title, day, time, venue, UNKNOWN, owner, url, tags,
-                            endDate=last.isoformat(), cohosts=cohosts,
+                            endDate=last.isoformat() if "DTEND" in item else "", cohosts=cohosts,
                             endTime=split_date(ends.isoformat())[1] if "DTEND" in item and isinstance(ends, datetime) and day == last.isoformat() else ""))
     return [host], events
 

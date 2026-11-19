@@ -24,6 +24,17 @@ for avatar in (ROOT / 'assets/groups').glob('*.png'):
     if organiser and not organiser.get('logo'):
         organiser['logo'] = str(avatar.relative_to(ROOT))
 
+# Real logos only: University-run organisers get the UoN crest, the SU gets its
+# own logo, and SU groups that have not uploaded a logo fall back to the SU's.
+UON_LOGO = 'assets/logos/uon-crest.svg'
+SU_LOGO = 'assets/logos/uonsu.png'
+UNIVERSITY_SOURCES = {'careers', 'living', 'university', 'computerscience', 'psychology'}
+for organiser in groups.values():
+    if organiser['source'] in UNIVERSITY_SOURCES:
+        organiser['logo'] = UON_LOGO
+    elif organiser['id'] == 'su' or (organiser['source'] == 'union' and not organiser.get('logo')):
+        organiser['logo'] = SU_LOGO
+
 def booking_slot(event):
     return (event['organiser'], event['title'].casefold(), event['date'], event['time'])
 

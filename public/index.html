@@ -66,7 +66,21 @@
               aria-label="Search events or groups"
               placeholder="Search an event or society"
           /></label>
-          <div class="choices">
+          <div class="quick" role="group" aria-label="Quick filters">
+            <button type="button" class="chip event-only" data-when="">All dates</button
+            ><button type="button" class="chip event-only" data-when="today">Today</button
+            ><button type="button" class="chip event-only" data-when="weekend">Weekend</button
+            ><button
+              type="button"
+              class="chip filter-toggle"
+              id="filtertoggle"
+              aria-expanded="false"
+              aria-controls="filterpanel"
+            >
+              Filters
+            </button>
+          </div>
+          <div class="panel" id="filterpanel" hidden>
             <label>Organiser<select id="kind"></select></label>
             <label class="event-only"
               >Date<select id="when">
@@ -77,7 +91,9 @@
                 <option value="date">Choose date</option>
               </select></label
             >
-            <input type="date" id="date" aria-label="Choose date" hidden />
+            <label class="event-only" id="datefield" hidden
+              >Pick a day<input type="date" id="date"
+            /></label>
             <label class="event-only"
               >Activity<select id="activity">
                 <option value="">All activities</option>
@@ -89,14 +105,9 @@
                 <option>Other</option>
               </select></label
             >
-            <details id="filters">
-              <summary>Filters</summary>
-              <div>
-                <label>Subject or interest<select id="topic"></select></label
-                ><label>Group<select id="org"></select></label>
-              </div>
-            </details>
-            <button id="reset">Reset</button>
+            <label>Subject or interest<select id="topic"></select></label>
+            <label>Group<select id="org"></select></label>
+            <button type="button" id="reset">Clear all filters</button>
           </div>
         </section>
 

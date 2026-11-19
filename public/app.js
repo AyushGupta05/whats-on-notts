@@ -71,20 +71,18 @@ function logo(org) {
   const url =
     safeURL(org.logo) ||
     (/^\/?(?:assets|logos)\//.test(org.logo || "") ? org.logo : "");
-  if (
-    url &&
-    ![
-      "careers",
-      "living",
-      "university",
-      "computerscience",
-      "psychology",
-    ].includes(org.source)
-  ) {
+  if (url) {
     const img = node("img");
     img.alt = "";
     img.loading = "lazy";
-    img.onerror = () => img.remove();
+    img.onerror = () => {
+      // A society logo that fails to load falls back to the SU's own logo.
+      if (img.dataset.fallback || url.includes("assets/logos/")) img.remove();
+      else {
+        img.dataset.fallback = "1";
+        img.src = "assets/logos/uonsu.png";
+      }
+    };
     img.src = url;
     box.append(img);
   }
@@ -163,12 +161,11 @@ function card(e, o) {
   title.append(link(e.title, e.url));
   const category = activity(e, o);
   const timing = e.date < dayKey(new Date()) ? "Ongoing" : e.time || "Time TBC";
+  const when = node("div", "time");
+  when.append(node("span", "clock", timing));
+  if (category !== "Other") when.append(node("span", "kind", category));
   body.append(
-    node(
-      "div",
-      "time",
-      category === "Other" ? timing : timing + "  ·  " + category,
-    ),
+    when,
     title,
     node("p", "meta", [o.name, e.venue].filter(Boolean).join(" · ")),
   );
@@ -236,7 +233,7 @@ function render() {
     topic = get("topic").value;
   for (const el of document.querySelectorAll(".event-only"))
     el.hidden = directory;
-  get("date").hidden = get("when").value !== "date";
+  get("datefield").hidden = directory || get("when").value !== "date";
   get("title").textContent = directory
     ? "Group directory"
     : view === "saved"
@@ -251,10 +248,17 @@ function render() {
     !get("when").value &&
     !get("activity").value &&
     kind === (view === "saved" ? "" : "Societies");
-  get("filters").querySelector("summary").textContent =
-    topic || get("org").value
-      ? "Filters · " + [topic, get("org").value].filter(Boolean).length
-      : "Filters";
+  const active = [
+    kind !== (view === "saved" ? "" : "Societies"),
+    !directory && get("activity").value,
+    !directory && get("when").value === "date",
+    topic,
+    get("org").value,
+  ].filter(Boolean).length;
+  get("filtertoggle").textContent = active ? "Filters · " + active : "Filters";
+  get("filtertoggle").classList.toggle("has-active", active > 0);
+  for (const chip of document.querySelectorAll("[data-when]"))
+    chip.setAttribute("aria-pressed", chip.dataset.when === get("when").value);
   get("savedcount").textContent = saved.size || "";
   for (const b of document.querySelectorAll("[data-view]"))
     b.setAttribute("aria-pressed", b.dataset.view === view);
@@ -318,6 +322,7 @@ function render() {
           "span",
           "calendar-date",
           day.toLocaleDateString("en-GB", {
+            weekday: label === "Today" || label === "Tomorrow" ? "short" : undefined,
             day: "numeric",
             month: "short",
             timeZone: "Europe/London",
@@ -430,6 +435,16 @@ async function start() {
       limit = 45;
       render();
     });
+  for (const chip of document.querySelectorAll("[data-when]"))
+    chip.onclick = () => {
+      get("when").value = chip.dataset.when;
+      get("when").dispatchEvent(new Event("input"));
+    };
+  get("filtertoggle").onclick = () => {
+    const panel = get("filterpanel");
+    panel.hidden = !panel.hidden;
+    get("filtertoggle").setAttribute("aria-expanded", !panel.hidden);
+  };
   get("reset").onclick = () => {
     reset();
     render();

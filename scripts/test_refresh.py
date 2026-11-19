@@ -134,6 +134,7 @@ class RefreshFailureTests(unittest.TestCase):
             )
             for name in (
                 "union",
+                "collective",
                 "living",
                 "lakeside",
                 "careers",

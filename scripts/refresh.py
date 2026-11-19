@@ -75,24 +75,48 @@ def split_date(value):
     return stamp.date().isoformat(), stamp.strftime("%H:%M")
 
 
-def profile_info(o):
+def profile_info(o, now):
     soup = page(o["url"])
+    instagram = ""
+    urls = set()
     for a in soup.select("a[href]"):
+        href = a["href"].strip()
         match = re.fullmatch(
             r"https?://(?:www\.)?instagram\.com/([a-z0-9._]+)/?(?:\?[^#]*)?",
-            a["href"],
-            re.IGNORECASE,
+            href, re.IGNORECASE,
         )
-        if match and match[1].lower() not in {
-            "uonsu",
-            "p",
-            "stories",
-            "explore",
-            "reel",
-            "reels",
+        if not instagram and match and match[1].lower() not in {
+            "uonsu", "p", "stories", "explore", "reel", "reels",
         }:
-            return "https://www.instagram.com/" + match[1] + "/"
-    return ""
+            instagram = "https://www.instagram.com/" + match[1] + "/"
+        parts = urlparse(href)
+        if (parts.scheme == "https" and parts.netloc in {"luma.com", "lu.ma"}
+                and re.fullmatch(r"/[a-zA-Z0-9_-]+/?", parts.path)):
+            urls.add("https://luma.com" + parts.path.rstrip("/"))
+
+    cached = {e["url"]: e for e in o.get("profileEvents", [])}
+    found = []
+    for url in sorted(urls):
+        try:
+            listing = BeautifulSoup(get(url, allow_redirects=False).content, "html.parser")
+            for script in listing.select('script[type="application/ld+json"]'):
+                record = json.loads(script.get_text())
+                if not isinstance(record, dict) or record.get("@type") != "Event":
+                    continue
+                if str(record.get("eventStatus", "")).endswith("EventCancelled"):
+                    continue
+                day, time = split_date(record["startDate"])
+                last, until = split_date(record.get("endDate") or record["startDate"])
+                if last >= now.date().isoformat():
+                    venue = record.get("location") or {}
+                    found.append(event(record["name"], day, time,
+                                       venue.get("name") if isinstance(venue, dict) else "",
+                                       UNKNOWN, o["id"], url, [o["category"]],
+                                       endDate=last, endTime=until if last==day and record.get("endDate") else ""))
+        except (requests.RequestException, ValueError, TypeError, KeyError):
+            if url in cached:
+                found.append(cached[url])
+    return instagram, found
 
 
 def union(previous, now):
@@ -189,7 +213,29 @@ def union(previous, now):
                 endDate=split_date(e["end_date"])[0] if e.get("end_date") else "",
             )
         )
-    # Cache each public profile for a month. Never request Instagram itself.
+    # The upcoming-only endpoint omits societies between events. Read the public
+    # archive every three days and retain the latest dated evidence per group.
+    history_checked = previous.get("su", {}).get("historyChecked", "")
+    for oid, owner in orgs.items():
+        for field in ("lastEvent", "lastEventUrl"):
+            if field in previous.get(oid, {}):
+                owner[field] = previous[oid][field]
+    if history_checked <= (now.date() - timedelta(days=3)).isoformat():
+        try:
+            for entry in paginate("events", sortBy="start_date", onlyFuture=0):
+                group = entry.get("group")
+                if not group or entry.get("unlisted"):
+                    continue
+                owner = orgs.get(f"su-{group['id']}")
+                day = split_date(entry["start_date"])[0]
+                if owner and day <= now.date().isoformat() and day > owner.get("lastEvent", ""):
+                    owner["lastEvent"] = day
+                    owner["lastEventUrl"] = f"https://su.nottingham.ac.uk/events/id/{entry['event_id']}-{entry['url_name']}"
+            history_checked = now.date().isoformat()
+        except (requests.RequestException, KeyError, ValueError, TypeError) as exc:
+            print(f"::warning::SU event archive unavailable: {exc}", flush=True)
+    union_org["historyChecked"] = history_checked
+    # Recheck every registered group, even those without upcoming events. Never request Instagram itself.
     stale = []
     for oid, o in orgs.items():
         if oid == "su":
@@ -197,20 +243,25 @@ def union(previous, now):
         old = previous.get(oid, {})
         o["instagram"] = old.get("instagram", "")
         checked = old.get("profileChecked", "")
-        if checked and checked >= (now.date() - timedelta(days=30)).isoformat():
+        o["profileEvents"] = old.get("profileEvents", [])
+        if "profileEvents" in old and checked and checked > (now.date() - timedelta(days=3)).isoformat():
             o["profileChecked"] = checked
         else:
             stale.append(o)
 
     def enrich(o):
         try:
-            o["instagram"] = profile_info(o)
+            o["instagram"], o["profileEvents"] = profile_info(o, now)
             o["profileChecked"] = now.date().isoformat()
         except requests.RequestException:
             pass
 
     with ThreadPoolExecutor(max_workers=3) as pool:
         list(pool.map(enrich, stale))
+    for owner in orgs.values():
+        events.extend(owner.get("profileEvents", []))
+    if "su-241" in orgs and not orgs["su-241"]["instagram"]:
+        orgs["su-241"]["instagram"] = "https://www.instagram.com/uonacs/"
     return list(orgs.values()), events
 
 
@@ -614,7 +665,46 @@ def robotics(previous, now):
     return [], events
 
 
+def collective(previous, now):
+    calendar = icalendar.Calendar.from_ical(get(SOURCES["collective"]).content)
+    host = org("collective", "OpenAI Student Collective at University of Nottingham",
+               "https://luma.com/openai-collective-university-of-nottingham", "University", "Technology")
+    events = []
+    for item in calendar.walk("VEVENT"):
+        if str(item.get("STATUS", "")).upper() == "CANCELLED":
+            continue
+        starts = item.decoded("DTSTART")
+        ends = item.decoded("DTEND") if "DTEND" in item else starts
+        if isinstance(starts, datetime):
+            day, time = split_date(starts.isoformat())
+        else:
+            day, time = starts.isoformat(), ""
+        last = (ends.astimezone(UK).date() if isinstance(ends, datetime)
+                else max(starts, ends - timedelta(days=1)))
+        if last < now.date():
+            continue
+        match = re.search(r"https://(?:luma\.com|lu\.ma)/[a-zA-Z0-9_-]+", str(item.get("DESCRIPTION", "")))
+        if not match:
+            continue
+        url = match[0]
+        title = str(item["SUMMARY"])
+        owner, cohosts, tags = "collective", [], ["Technology"]
+        venue = str(item.get("LOCATION", ""))
+        if venue.startswith("https://"):
+            venue = ""
+        if url.endswith("/diuir9bw"):
+            owner, cohosts, tags = "su-241", ["su-682", "collective"], ["Careers", "Workshop"]
+            if "Sir Clive Granger Building" in venue:
+                venue = "A41, Sir Clive Granger Building"
+        events.append(event(title, day, time, venue, UNKNOWN, owner, url, tags,
+                            endDate=last.isoformat(), cohosts=cohosts,
+                            endTime=ends.astimezone(UK).strftime("%H:%M") if isinstance(ends, datetime) and day == last.isoformat() else ""))
+    return [host], events
+
+
 SOCIETY_FALLBACKS = {
+    "su-241": ("African-Caribbean Society", "african-caribbean", "International and Cultural"),
+    "su-682": ("Advancing Black Careers Society", "abc", "Identity/Infinity"),
     "su-213": ("HackSoc", "hacksoc", "Hobbies and Interest"),
     "su-42": ("New Theatre", "new-theatre", "Student-Run Services"),
     "su-711": (
@@ -635,6 +725,7 @@ def main():
     failed = []
     for source, load in {
         "union": union,
+        "collective": collective,
         "living": living,
         "hacksoc": hacksoc,
         "newtheatre": newtheatre,
@@ -690,7 +781,7 @@ def main():
     # start when a calendar succeeds but the SU directory is unavailable.
     for oid, (name, slug, category) in SOCIETY_FALLBACKS.items():
         if oid not in all_orgs and any(
-            e["organiser"] == oid for e in all_events.values()
+            e["organiser"] == oid or oid in e.get("cohosts", []) for e in all_events.values()
         ):
             all_orgs[oid] = previous.get(oid) or dict(
                 org(

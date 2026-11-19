@@ -89,6 +89,7 @@ function logo(org) {
   return box;
 }
 function activity(e, org) {
+  if (e.tags?.includes("Workshop")) return "Workshop";
   if (e.tags?.includes("Sport")) return "Sport";
   if (e.source === "newtheatre" || /\b(concert|showcase|recital)\b/i.test(e.title)) return "Performance";
   const title = e.title.toLowerCase();
@@ -160,7 +161,7 @@ function card(e, o) {
   const title = node("h3");
   title.append(link(e.title, e.url));
   const category = activity(e, o);
-  const timing = e.date < dayKey(new Date()) ? "Ongoing" : e.time || "Time TBC";
+  const timing = e.date < dayKey(new Date()) ? "Ongoing" : (e.endTime ? e.time + "–" + e.endTime : e.time) || "Time TBC";
   const when = node("div", "time");
   when.append(node("span", "clock", timing));
   if (category !== "Other") when.append(node("span", "kind", category));
@@ -225,12 +226,16 @@ function dateMatch(e, today) {
   }
   return true;
 }
+function showGroup(o) {
+  return o.active !== false || (view === "organisers" && get("include-unverified").checked);
+}
 function render() {
   const directory = view === "organisers",
     today = dayKey(new Date());
   const q = get("query").value.trim().toLowerCase(),
     kind = get("kind").value,
     topic = get("topic").value;
+  get("review-groups").hidden = !directory;
   for (const el of document.querySelectorAll(".event-only"))
     el.hidden = directory;
   get("datefield").hidden = directory || get("when").value !== "date";
@@ -267,7 +272,7 @@ function render() {
   const matches = directory
     ? [...groups.values()]
         .filter(
-          (o) =>
+          (o) => showGroup(o) &&
             (!kind || o.group === kind) &&
             (!topic || o.category === topic) &&
             (!get("org").value || o.id === get("org").value) &&
@@ -281,13 +286,13 @@ function render() {
           o &&
           (e.endDate || e.date) >= today &&
           dateMatch(e, today) &&
-          (!kind || kind === o.group) &&
+          (!kind || kind === o.group || e.cohosts?.some(id => groups.get(id)?.group === kind)) &&
           (!topic || o.category === topic || tags.includes(topic)) &&
-          (!get("org").value || o.id === get("org").value) &&
+          (!get("org").value || o.id === get("org").value || e.cohosts?.includes(get("org").value)) &&
           (!get("activity").value ||
             get("activity").value === activity(e, o)) &&
           (view !== "saved" || saved.has(eventKey(e))) &&
-          [e.title, e.venue, o.name, o.category, ...tags]
+          [e.title, e.venue, o.name, o.category, ...(e.cohosts || []).map(id => groups.get(id)?.name), ...tags]
             .join(" ")
             .toLowerCase()
             .includes(q)
@@ -355,7 +360,7 @@ function render() {
 function groupOptions() {
   const kind = get("kind").value;
   const available = [...groups.values()].filter(
-    (o) => !kind || o.group === kind,
+    (o) => showGroup(o) && (!kind || o.group === kind),
   );
   const ids = new Set(available.map((o) => o.id));
   const tags =
@@ -376,6 +381,7 @@ function groupOptions() {
   );
 }
 function reset() {
+  get("include-unverified").checked = false;
   for (const id of [
     "query",
     "when",
@@ -444,6 +450,11 @@ async function start() {
     const panel = get("filterpanel");
     panel.hidden = !panel.hidden;
     get("filtertoggle").setAttribute("aria-expanded", !panel.hidden);
+  };
+  get("include-unverified").onchange = () => {
+    groupOptions();
+    limit = 45;
+    render();
   };
   get("reset").onclick = () => {
     reset();

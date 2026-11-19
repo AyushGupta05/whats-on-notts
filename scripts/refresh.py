@@ -496,11 +496,16 @@ def hacksoc(previous, now):
         if starts < now.date():
             continue
         url = urljoin(SOURCES["hacksoc"], urlparse(row["permalink"]).path)
+        origin = urlparse(SOURCES["hacksoc"])
+        resolved = urlparse(url)
+        if (resolved.scheme, resolved.netloc) != (origin.scheme, origin.netloc):
+            continue
+        time = row.get("time")
         events.append(
             event(
                 row["title"],
                 starts.isoformat(),
-                row.get("time", ""),
+                time.strip() if isinstance(time, str) else "",
                 row.get("location"),
                 UNKNOWN,
                 "su-213",

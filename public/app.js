@@ -43,9 +43,8 @@ let groups = new Map(),
   view = "events",
   limit = 45,
   saved = new Set();
-try {
-  saved = new Set(JSON.parse(localStorage.getItem("notts-saved") || "[]"));
-} catch {}
+let records = [];
+let storageWritable = true;
 function options(id, label, items) {
   const el = get(id);
   el.replaceChildren(new Option(label, ""));
@@ -109,6 +108,53 @@ function activity(e, org) {
 function eventKey(e) {
   return [e.organiser, e.url, e.date, e.time].join("|");
 }
+const slotCounts = new Map();
+function bookmarkSlot(e) {
+  return JSON.stringify([e.organiser, e.date, e.time, e.title.toLowerCase()]);
+}
+function bookmarkKeys(e) {
+  const keys = [eventKey(e), ...(e.aliases || [])];
+  const slot = bookmarkSlot(e);
+  if (slotCounts.get(slot) === 1) keys.push(slot);
+  return keys;
+}
+function restoreBookmarks() {
+  if (!storageWritable) return;
+  let raw;
+  try {
+    raw = localStorage.getItem("notts-saved") || "[]";
+    records = JSON.parse(raw).map(item => Array.isArray(item) ? item : [item]);
+  } catch {}
+  const today = dayKey(new Date());
+  const direct = new Map(), aliases = new Map(), slots = new Map();
+  for (const e of events) {
+    if ((e.endDate || e.date) < today) continue;
+    direct.set(eventKey(e), e);
+    direct.set(eventKey(e) + "|" + e.title, e);
+    for (const key of e.aliases || []) {
+      aliases.set(key,e);
+      aliases.set(key + "|" + e.title,e);
+    }
+    if (slotCounts.get(bookmarkSlot(e)) === 1) slots.set(bookmarkSlot(e),e);
+  }
+  saved.clear();
+  records = records.map(record => {
+    const e = record.map(key => direct.get(key)).find(Boolean) ||
+              record.map(key => aliases.get(key)).find(Boolean) ||
+              record.map(key => slots.get(key)).find(Boolean);
+    if (!e) return record;
+    saved.add(eventKey(e));
+    return [...new Set([...bookmarkKeys(e), ...record.filter(key => !key.startsWith("["))])];
+  });
+  if (JSON.stringify(records) !== raw) storeBookmarks();
+}
+function storeBookmarks() {
+  try {
+    localStorage.setItem("notts-saved", JSON.stringify(records));
+  } catch {
+    storageWritable = false;
+  }
+}
 function card(e, o) {
   const item = node("article"),
     body = node("div"),
@@ -134,11 +180,15 @@ function card(e, o) {
   );
   button.setAttribute("aria-pressed", saved.has(key));
   button.onclick = () => {
-    if (saved.has(key)) saved.delete(key);
-    else saved.add(key);
-    try {
-      localStorage.setItem("notts-saved", JSON.stringify([...saved]));
-    } catch {}
+    restoreBookmarks();
+    if (saved.has(key)) {
+      saved.delete(key);
+      records = records.filter(record => record[0] !== key);
+    } else {
+      saved.add(key);
+      records.push(bookmarkKeys(e));
+    }
+    storeBookmarks();
     render();
   };
   side.append(button);
@@ -347,16 +397,11 @@ async function start() {
         (a.time || "99").localeCompare(b.time || "99") ||
         a.title.localeCompare(b.title),
     );
-  const today = dayKey(new Date());
-  saved = new Set(
-    events
-      .filter(
-        (e) =>
-          (e.endDate || e.date) >= today &&
-          [eventKey(e), ...(e.aliases || [])].some(key => saved.has(key) || saved.has(key + "|" + e.title)),
-      )
-      .map(eventKey),
-  );
+  for (const event of events) {
+    const slot = bookmarkSlot(event);
+    slotCounts.set(slot, (slotCounts.get(slot) || 0) + 1);
+  }
+  restoreBookmarks();
   const orgs = [...groups.values()];
   options(
     "kind",

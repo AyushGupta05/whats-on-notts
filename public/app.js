@@ -393,6 +393,7 @@ function render() {
 }
 function groupOptions() {
   const kind = get("kind").value;
+  const selected = ["topic", "org"].map(id => [id, get(id).value]);
   const available = [...groups.values()].filter(
     (o) => showGroup(o) && (!kind || o.group === kind),
   );
@@ -413,6 +414,9 @@ function groupOptions() {
       .sort((a, b) => a.name.localeCompare(b.name))
       .map((o) => [o.id, o.name]),
   );
+  for (const [id, value] of selected) {
+    if ([...get(id).options].some(option => option.value === value)) get(id).value = value;
+  }
 }
 function reset() {
   get("include-unverified").checked = false;

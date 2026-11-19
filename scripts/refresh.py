@@ -110,6 +110,9 @@ def profile_info(o, now):
                     continue
                 day, time = split_date(record["startDate"])
                 last, until = split_date(record.get("endDate") or record["startDate"])
+                if record.get("endDate"):
+                    end = datetime.fromisoformat(record["endDate"])
+                    last = max(day, split_date((end - timedelta(microseconds=1)).isoformat())[0])
                 if last >= now.date().isoformat():
                     venue = record.get("location") or {}
                     found.append(event(record["name"], day, time,
@@ -767,9 +770,13 @@ def main():
             all_orgs[o["id"]] = dict(o, source=source)
         for e in events:
             if max(e["date"], e.get("endDate", "")) >= now.date().isoformat():
-                all_events[(source, e["url"], e["date"], e["time"])] = dict(
-                    e, source=source
-                )
+                key = (source, e["url"], e["date"], e["time"])
+                existing = all_events.get(key)
+                if existing and existing.get("discoveredOnProfile") and e.get("discoveredOnProfile"):
+                    hosts = {e["organiser"], *existing.get("cohosts", [])} - {existing["organiser"]}
+                    existing["cohosts"] = sorted(hosts)
+                else:
+                    all_events[key] = dict(e, source=source)
         print(
             f"{source}: {len(orgs)} organisers, {len(events)} source occurrences",
             flush=True,

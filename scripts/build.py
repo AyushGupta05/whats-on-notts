@@ -61,6 +61,25 @@ def saved_key(event):
 
 # SU booking links take precedence when both organisers list the same activity.
 su_slots = {booking_slot(e): e for e in data['events'] if e['source'] == 'union' and not e.get('discoveredOnProfile')}
+def merge_listing(primary, other):
+    if primary is other:
+        return
+    hosts = set(primary.get('cohosts', [])) | set(other.get('cohosts', [])) | {other['organiser']}
+    primary['cohosts'] = sorted(hosts - {primary['organiser']})
+    primary['tags'] = sorted(set(primary['tags'] + other.get('tags', [])))
+    primary['aliases'] = sorted((set(primary.get('aliases', [])) | set(other.get('aliases', []))
+                                 | {saved_key(other)}) - {saved_key(primary)})
+    if other.get('endTime') and not primary.get('endTime'):
+        primary['endTime'] = other['endTime']
+
+
+collective_urls = {(e['url'].rstrip('/'), e['date'], e['time']): e
+                   for e in data['events'] if e['source'] == 'collective'}
+for listing in data['events']:
+    key = (listing['url'].rstrip('/'), listing['date'], listing['time'])
+    if listing.get('discoveredOnProfile') and key in collective_urls:
+        merge_listing(collective_urls[key], listing)
+emitted = set()
 published = []
 collaborators = {'orientalsoc': 'su-555', 'travelsoc': 'su-230'}
 for e in data['events']:
@@ -73,14 +92,16 @@ for e in data['events']:
         e['organiser'] = cohost
     if e['source'] == 'arts':
         continue
+    canonical = collective_urls.get((e['url'].rstrip('/'), e['date'], e['time']))
+    if canonical is not None:
+        e = canonical
     preferred = su_slots.get(booking_slot(e))
-    if preferred and (e.get('discoveredOnProfile') or e['source'] in {'hacksoc', 'newtheatre', 'robotics', 'living', 'announcement', 'collective'}):
-        preferred['cohosts'] = sorted(set(preferred.get('cohosts', []) + e.get('cohosts', [])))
-        preferred['tags'] = sorted(set(preferred['tags'] + e.get('tags', [])))
-        if e.get('endTime') and not preferred.get('endTime'):
-            preferred['endTime'] = e['endTime']
-        preferred.setdefault('aliases', []).extend([saved_key(e), *e.get('aliases', [])])
+    if preferred is not None and preferred is not e and (e['source'] != 'union' or e.get('discoveredOnProfile')):
+        merge_listing(preferred, e)
         continue
+    if id(e) in emitted:
+        continue
+    emitted.add(id(e))
     e.pop('price', None)
     published.append(e)
 published.sort(key=lambda e: (e['date'], e['time'], e['title']))

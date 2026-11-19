@@ -6,5 +6,8 @@
   "university": "https://www.nottingham.ac.uk/events/events-all.aspx?Calendar_List_EventDateSpan=All",
   "careers": "https://www.nottingham.ac.uk/careers/students/events/index.aspx",
   "computerscience": "https://www.nottingham.ac.uk/computerscience/events.aspx",
-  "psychology": "https://www.nottingham.ac.uk/psychology/newsandevents.aspx"
+  "psychology": "https://www.nottingham.ac.uk/psychology/newsandevents.aspx",
+  "hacksoc": "https://hacksocnotts.co.uk/events/index.json",
+  "newtheatre": "https://newtheatre.org.uk/whats-on",
+  "robotics": "https://calendar.google.com/calendar/ical/c_95c44bf981fa3636cbe69b8f62bae503925df340d1387ade6c9d3cd9443ac352%40group.calendar.google.com/public/basic.ics"
 }

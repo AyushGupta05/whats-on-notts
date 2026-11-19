@@ -6,3 +6,6 @@ public/event/
 public/events.html
 public/sitemap.xml
 design/
+
+dist/
+notts-build-*/

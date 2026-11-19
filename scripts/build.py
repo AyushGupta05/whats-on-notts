@@ -1,14 +1,59 @@
 """Build crawlable event pages, their sitemap and a no-JavaScript directory."""
 import hashlib
 import json
+import shutil
+import tempfile
 from html import escape
 from pathlib import Path
 from urllib.parse import urlsplit
 
-ROOT = Path(__file__).resolve().parents[1] / 'public'
+PROJECT = Path(__file__).resolve().parents[1]
+SOURCE = PROJECT / 'public'
+ROOT = Path(tempfile.mkdtemp(prefix='notts-build-',dir=PROJECT))
+for name in ('CNAME','app.js','assets','index.html','robots.txt','style.css'):
+    path = SOURCE / name
+    if path.is_dir():
+        shutil.copytree(path, ROOT / name)
+    else:
+        shutil.copy2(path, ROOT / name)
 BASE = 'https://whatsonnotts.com/'
-data = json.loads((ROOT / 'data.json').read_text())
+data = json.loads((SOURCE / 'data.json').read_text())
 groups = {o['id']: o for o in data['organisers']}
+for avatar in (ROOT / 'assets/groups').glob('*.png'):
+    organiser = groups.get(avatar.stem)
+    if organiser and not organiser.get('logo'):
+        organiser['logo'] = str(avatar.relative_to(ROOT))
+
+def booking_slot(event):
+    return (event['organiser'], event['title'].casefold(), event['date'], event['time'])
+
+
+def saved_key(event):
+    return '|'.join(event[k] for k in ('organiser', 'url', 'date', 'time'))
+
+
+# SU booking links take precedence when both organisers list the same activity.
+su_slots = {booking_slot(e): e for e in data['events'] if e['source'] == 'union'}
+published = []
+collaborators = {'orientalsoc': 'su-555', 'travelsoc': 'su-230'}
+for e in data['events']:
+    if e['source'] == 'living':
+        cohost = next((oid for name, oid in collaborators.items()
+                       if name in e['title'].casefold() and oid in groups), None)
+        if not cohost:
+            continue
+        e['aliases'] = [saved_key(e)]
+        e['organiser'] = cohost
+    if e['source'] == 'arts':
+        continue
+    preferred = su_slots.get(booking_slot(e))
+    if preferred and e['source'] in {'hacksoc', 'newtheatre', 'robotics', 'living'}:
+        preferred.setdefault('aliases', []).extend([saved_key(e), *e.get('aliases', [])])
+        continue
+    e.pop('price', None)
+    published.append(e)
+data['events'] = published
+(ROOT / 'data.json').write_text(json.dumps(data,ensure_ascii=False,separators=(',',':')))
 items = []
 pages = ROOT / 'event'
 pages.mkdir(exist_ok=True)
@@ -19,12 +64,17 @@ for e in data['events']:
     slug = hashlib.sha256(key.encode()).hexdigest()[:20]
     path = 'event/' + slug + '.html'
     canonical = BASE + path
-    title, date, time, venue, price = (escape(e[k]) for k in ('title','date','time','venue','price'))
+    title, date, time, venue = (escape(e[k]) for k in ('title','date','time','venue'))
     organiser = escape(groups[e['organiser']]['name'])
     source = escape(e['url'], quote=True)
     tags = ' · '.join(escape(t) for t in e['tags'])
-    description = f'{organiser} · {date} {time} · {venue} · {price}'
-    (ROOT / path).write_text(f'''<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{title} · What’s On Notts</title><meta name="description" content="{description}"><link rel="canonical" href="{canonical}"><link rel="stylesheet" href="../style.css"><link rel="icon" href="../assets/profile.png"></head><body><main class="detail"><a class="brand" href="../"><img src="../assets/flag.svg" alt="">What’s On Notts</a><p class="time">{date} {time}</p><h1>{title}</h1><p>{organiser}</p><p>{venue}</p><p>{price}</p><p class="meta">{tags}</p><a class="book" href="{source}">Event details &amp; booking ↗</a></main></body></html>''')
+    description = f'{organiser} · {date} {time} · {venue}'
+    (ROOT / path).write_text(f'''<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{title} · What’s On Notts</title><meta name="description" content="{description}"><link rel="canonical" href="{canonical}"><link rel="stylesheet" href="../style.css"><link rel="icon" href="../assets/profile.png"></head><body><main class="detail"><a class="brand" href="../"><img src="../assets/flag.svg" alt="">What’s On Notts</a><p class="time">{date} {time}</p><h1>{title}</h1><p>{organiser}</p><p>{venue}</p><p class="meta">{tags}</p><a class="book" href="{source}">Event details &amp; booking ↗</a></main></body></html>''')
     items.append((path, f'{date} · {title}'))
 (ROOT / 'events.html').write_text('<!doctype html><html lang="en-GB"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="style.css"><title>Event directory · What’s On Notts</title><main class="detail"><a href="./">← Campus events</a><h1>Event directory</h1><ul class="directory-list">'+''.join(f'<li><a href="{p}">{t}</a></li>' for p,t in items)+'</ul></main></html>')
 (ROOT / 'sitemap.xml').write_text('<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'+''.join(f'<url><loc>{BASE}{p}</loc></url>' for p in ['', 'events.html']+[p for p,_ in items])+'</urlset>')
+
+output = PROJECT / 'dist'
+if output.exists():
+    shutil.rmtree(output)
+ROOT.rename(output)

@@ -16,6 +16,67 @@ def soup(markup):
 
 
 class CalendarParsingTests(unittest.TestCase):
+    def test_hacksoc_skips_an_undated_archived_event(self):
+        rows = [
+            {"date": "<no value>", "title": "HackNotts 2021"},
+            {
+                "date": "2026-11-19",
+                "title": "Lecture Slide Karaoke",
+                "permalink": "/events/karaoke",
+                "time": "18:30",
+            },
+        ]
+        with patch.object(refresh, "get") as fetch:
+            fetch.return_value.json.return_value = {"data": rows}
+            _, events = refresh.hacksoc({}, datetime(2026, 11, 19))
+        self.assertEqual([e["title"] for e in events], ["Lecture Slide Karaoke"])
+
+    def test_robotics_keeps_inclusive_local_end_dates(self):
+        dates = [
+            (
+                "all-day",
+                "DTSTART;VALUE=DATE:20261118",
+                "DTEND;VALUE=DATE:20261121",
+                "2026-11-20",
+            ),
+            (
+                "midnight",
+                "DTSTART:20261118T170000Z",
+                "DTEND:20261120T000000Z",
+                "2026-11-19",
+            ),
+            (
+                "overnight",
+                "DTSTART:20261118T170000Z",
+                "DTEND:20261120T010000Z",
+                "2026-11-20",
+            ),
+            (
+                "summer",
+                "DTSTART:20270501T180000Z",
+                "DTEND:20270502T230000Z",
+                "2027-05-02",
+            ),
+        ]
+        lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//test//EN"]
+        for name, begin, end, _ in dates:
+            lines.extend(
+                [
+                    "BEGIN:VEVENT",
+                    "UID:" + name,
+                    "SUMMARY:" + name,
+                    begin,
+                    end,
+                    "END:VEVENT",
+                ]
+            )
+        with patch.object(refresh, "get") as fetch:
+            fetch.return_value.content = "\r\n".join(lines + ["END:VCALENDAR"]).encode()
+            _, result = refresh.robotics({}, datetime(2026, 11, 19, tzinfo=refresh.UK))
+        self.assertEqual(
+            {e["title"]: e["endDate"] for e in result}, {r[0]: r[3] for r in dates}
+        )
+
     def test_shortened_date_ranges(self):
         self.assertEqual(
             refresh.academic_dates("13 - 16/12/2026"), ("2026-12-13", "2026-12-16")
@@ -71,7 +132,16 @@ class RefreshFailureTests(unittest.TestCase):
             name: stack.enter_context(
                 patch.object(refresh, name, side_effect=ValueError("unavailable"))
             )
-            for name in ("union", "living", "lakeside", "careers", "university")
+            for name in (
+                "union",
+                "living",
+                "lakeside",
+                "careers",
+                "university",
+                "hacksoc",
+                "newtheatre",
+                "robotics",
+            )
         }
 
     def row(self, title, source):
@@ -80,6 +150,7 @@ class RefreshFailureTests(unittest.TestCase):
             "time": "17:00",
             "url": "https://example.com/" + source,
             "title": title,
+            "organiser": "resx",
             "source": source,
         }
 
@@ -97,6 +168,32 @@ class RefreshFailureTests(unittest.TestCase):
             result["sources"]["living"]["lastSuccess"],
             self.cached["sources"]["living"]["lastSuccess"],
         )
+
+    def test_sources_keep_independent_copies_of_crosslisted_events(self):
+        self.output.unlink()
+        for source in ("union", "hacksoc"):
+            row = dict(
+                self.row("Society talk", source),
+                organiser="su-213",
+                url="https://example.com/shared",
+            )
+            self.loaders[source].side_effect = None
+            self.loaders[source].return_value = ([], [row])
+        refresh.main()
+        result = json.loads(self.output.read_text())
+        self.assertEqual({e["source"] for e in result["events"]}, {"union", "hacksoc"})
+
+    def test_calendar_uses_shared_organiser_if_union_is_unavailable(self):
+        self.output.unlink()
+        self.loaders["hacksoc"].side_effect = None
+        record = dict(self.row("Talk", "hacksoc"), organiser="su-213")
+        self.loaders["hacksoc"].return_value = ([], [record])
+        refresh.main()
+        result = json.loads(self.output.read_text())
+        self.assertEqual(
+            result["organisers"][0]["id"], result["events"][0]["organiser"]
+        )
+        self.assertEqual(result["organisers"][0]["source"], "union")
 
     def test_total_failure_leaves_the_previous_snapshot_intact(self):
         before = self.output.read_bytes()

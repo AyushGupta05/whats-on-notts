@@ -6,12 +6,14 @@ import os
 import re
 import tempfile
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin, urlparse, urlencode, unquote, quote
 from zoneinfo import ZoneInfo
 
 import requests
+import icalendar
+import recurring_ical_events
 from bs4 import BeautifulSoup
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -129,7 +131,11 @@ def union(previous, now):
     for g in paginate("groups", sortBy="name"):
         cat = categories.get(g["activity_category_id"], {})
         parent = categories.get(cat.get("parent_id"), cat)
-        branch = "Sports" if "sport" in cat.get("name", "").lower() else "Societies"
+        is_sport = parent.get("name") == "Sports Clubs" or cat.get("name") in {
+            "Sports (SB)",
+            "Sports (Med Soc)",
+        }
+        branch = "Sports" if is_sport else "Societies"
         o = org(
             f"su-{g['id']}",
             clean(g["name"]),
@@ -262,8 +268,13 @@ def living(previous, now):
     if not total:
         raise ValueError("Student Living pagination unavailable")
     count = int(total[1].replace(",", ""))
+
     def event_cards(document):
-        return [card for card in document.select("article") if card.select_one(":scope figure a[href*='/event/']")]
+        return [
+            card
+            for card in document.select("article")
+            if card.select_one(":scope figure a[href*='/event/']")
+        ]
 
     first_cards = event_cards(first)
     step = len(first_cards)
@@ -475,6 +486,140 @@ def university(previous, now, source="university"):
     return [o], result
 
 
+def hacksoc(previous, now):
+    events = []
+    for row in get(SOURCES["hacksoc"]).json()["data"]:
+        try:
+            starts = date.fromisoformat(row["date"])
+        except (ValueError, TypeError):
+            continue  # The archive contains undated historical entries.
+        if starts < now.date():
+            continue
+        url = urljoin(SOURCES["hacksoc"], urlparse(row["permalink"]).path)
+        events.append(
+            event(
+                row["title"],
+                starts.isoformat(),
+                row.get("time", ""),
+                row.get("location"),
+                UNKNOWN,
+                "su-213",
+                url,
+                ["Technology", "School of Computer Science"],
+            )
+        )
+    return [], events
+
+
+def newtheatre(previous, now):
+    base = SOURCES["newtheatre"]
+    listing = page(base)
+    if not listing.find("h1") or "what" not in text(listing.find("h1")).lower():
+        raise ValueError("Unrecognised theatre listings")
+    links = sorted(
+        {
+            urljoin(base, a["href"].split("#")[0])
+            for a in listing.select('a[href^="/whats-on/"]')
+        }
+    )
+    events = []
+    for url in links:
+        show = page(url)
+        title = text(show.find("h1"))
+        performances = show.select("li time[datetime]")
+        if not title or not performances:
+            raise ValueError(f"No performance details for {url}")
+        for t in performances:
+            row = t.find_parent("li")
+            date, time = split_date(t["datetime"].replace("Z", "+00:00"))
+            details = text(t.find_parent("p").find_next_sibling("p")).split(" · ")
+            venue = details[1] if len(details) > 1 else ""
+            price = re.search(r"(?:from )?£[\d,.]+|\bFree\b", text(row), re.I)
+            events.append(
+                event(
+                    title,
+                    date,
+                    time,
+                    venue,
+                    price[0] if price else UNKNOWN,
+                    "su-42",
+                    url,
+                    ["Theatre", "Arts & culture"],
+                )
+            )
+    return [], events
+
+
+def robotics(previous, now):
+    url = SOURCES["robotics"]
+    calendar_id = unquote(url.split("/ical/")[1].split("/")[0])
+    cal = icalendar.Calendar.from_ical(get(url).content)
+    start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    events = []
+    for item in recurring_ical_events.of(cal).between(
+        start, start + timedelta(days=365)
+    ):
+        if str(item.get("STATUS", "")).upper() == "CANCELLED":
+            continue
+        begins = item.decoded("DTSTART")
+        if isinstance(begins, datetime):
+            date, time = split_date(begins.isoformat())
+        else:
+            date, time = begins.isoformat(), ""
+        end_date = date
+        if "DTEND" in item:
+            ends = item.decoded("DTEND")
+            if isinstance(ends, datetime):
+                end_date = split_date((ends - timedelta(microseconds=1)).isoformat())[0]
+            else:
+                end_date = (ends - timedelta(days=1)).isoformat()
+            end_date = max(date, end_date)
+        stamp = datetime.fromisoformat(date)
+        dates = (
+            stamp.strftime("%Y%m%d")
+            + "/"
+            + (stamp + timedelta(days=1)).strftime("%Y%m%d")
+        )
+        href = "https://calendar.google.com/calendar/embed?" + urlencode(
+            {
+                "src": calendar_id,
+                "ctz": "Europe/London",
+                "mode": "AGENDA",
+                "dates": dates,
+            }
+        )
+        # Google’s public agenda opens on the occurrence date. The iCalendar
+        # UID identifies simultaneous events even for anonymous visitors.
+        href += "#" + quote(str(item["UID"]), safe="")
+        title = str(item["SUMMARY"])
+        tags = ["Sport"] if "volleyball" in title.lower() else ["Technology"]
+        events.append(
+            event(
+                title,
+                date,
+                time,
+                str(item.get("LOCATION", "")),
+                UNKNOWN,
+                "su-711",
+                href,
+                tags,
+                endDate=end_date,
+            )
+        )
+    return [], events
+
+
+SOCIETY_FALLBACKS = {
+    "su-213": ("HackSoc", "hacksoc", "Hobbies and Interest"),
+    "su-42": ("New Theatre", "new-theatre", "Student-Run Services"),
+    "su-711": (
+        "Robotics Society",
+        "robotics_society",
+        "Professional Skills",
+    ),
+}
+
+
 def main():
     now = datetime.now(UK)
     old = json.loads(OUTPUT.read_text()) if OUTPUT.exists() else {}
@@ -486,6 +631,9 @@ def main():
     for source, load in {
         "union": union,
         "living": living,
+        "hacksoc": hacksoc,
+        "newtheatre": newtheatre,
+        "robotics": robotics,
         "arts": lakeside,
         "careers": careers,
         "university": university,
@@ -522,7 +670,9 @@ def main():
             all_orgs[o["id"]] = dict(o, source=source)
         for e in events:
             if max(e["date"], e.get("endDate", "")) >= now.date().isoformat():
-                all_events[(e["url"], e["date"], e["time"])] = dict(e, source=source)
+                all_events[(source, e["url"], e["date"], e["time"])] = dict(
+                    e, source=source
+                )
         print(
             f"{source}: {len(orgs)} organisers, {len(events)} source occurrences",
             flush=True,
@@ -531,6 +681,22 @@ def main():
         raise RuntimeError("Every source failed; keeping the previous snapshot")
     if not all_events:
         raise RuntimeError("Empty catalogue")
+    # Extra calendars share their SU organiser. Keep links valid on a cold
+    # start when a calendar succeeds but the SU directory is unavailable.
+    for oid, (name, slug, category) in SOCIETY_FALLBACKS.items():
+        if oid not in all_orgs and any(
+            e["organiser"] == oid for e in all_events.values()
+        ):
+            all_orgs[oid] = previous.get(oid) or dict(
+                org(
+                    oid,
+                    name,
+                    urljoin(SOURCES["groups"], "/activities/view/" + slug),
+                    "Societies",
+                    category,
+                ),
+                source="union",
+            )
     output = {
         "updated": now.isoformat(timespec="seconds"),
         "organisers": list(all_orgs.values()),

@@ -152,16 +152,12 @@ function dateMatch(e, today) {
   }
   return true;
 }
-function showGroup(o) {
-  return o.active !== false || (view === "organisers" && get("include-unverified").checked);
-}
 function render() {
   const directory = view === "organisers",
     today = dayKey(new Date());
   const q = get("query").value.trim().toLowerCase(),
     kind = get("kind").value,
     topic = get("topic").value;
-  get("review-groups").hidden = !directory;
   for (const el of document.querySelectorAll(".event-only"))
     el.hidden = directory;
   get("title").textContent = directory
@@ -226,7 +222,7 @@ function render() {
   const matches = directory
     ? [...groups.values()]
         .filter(
-          (o) => showGroup(o) &&
+          (o) => o.active !== false &&
             (!kind || o.group === kind) &&
             (!topic || o.category === topic) &&
             (!get("org").value || o.id === get("org").value) &&
@@ -315,7 +311,7 @@ function groupOptions() {
   const kind = get("kind").value;
   const selected = ["topic", "org"].map(id => [id, get(id).value]);
   const available = [...groups.values()].filter(
-    (o) => showGroup(o) && (!kind || o.group === kind),
+    (o) => o.active !== false && (!kind || o.group === kind),
   );
   const ids = new Set(available.map((o) => o.id));
   const tags =
@@ -339,7 +335,6 @@ function groupOptions() {
   }
 }
 function reset() {
-  get("include-unverified").checked = false;
   for (const id of [
     "query",
     "when",
@@ -419,11 +414,6 @@ async function start() {
         if (id === "when") get("date").value = "";
         get(id).dispatchEvent(new Event("input"));
       };
-  };
-  get("include-unverified").onchange = () => {
-    groupOptions();
-    limit = 45;
-    render();
   };
   pick("[data-when]", "when", "when");
   pick("[data-kind]", "kind", "kind");

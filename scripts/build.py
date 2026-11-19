@@ -69,14 +69,19 @@ def merge_listing(primary, other):
     primary['tags'] = sorted(set(primary['tags'] + other.get('tags', [])))
     primary['aliases'] = sorted((set(primary.get('aliases', [])) | set(other.get('aliases', []))
                                  | {saved_key(other)}) - {saved_key(primary)})
-    if other.get('endTime') and not primary.get('endTime'):
-        primary['endTime'] = other['endTime']
+    for field in ('endDate', 'endTime'):
+        if other.get(field) and not primary.get(field):
+            primary[field] = other[field]
 
 
-collective_urls = {(e['url'].rstrip('/'), e['date'], e['time']): e
+def luma_slot(e):
+    return (e['url'].replace('https://lu.ma/', 'https://luma.com/').rstrip('/'), e['date'], e['time'])
+
+
+collective_urls = {luma_slot(e): e
                    for e in data['events'] if e['source'] == 'collective'}
 for listing in data['events']:
-    key = (listing['url'].rstrip('/'), listing['date'], listing['time'])
+    key = luma_slot(listing)
     if listing.get('discoveredOnProfile') and key in collective_urls:
         merge_listing(collective_urls[key], listing)
 emitted = set()
@@ -92,7 +97,7 @@ for e in data['events']:
         e['organiser'] = cohost
     if e['source'] == 'arts':
         continue
-    canonical = collective_urls.get((e['url'].rstrip('/'), e['date'], e['time']))
+    canonical = collective_urls.get(luma_slot(e))
     if canonical is not None:
         e = canonical
     preferred = su_slots.get(booking_slot(e))

@@ -102,10 +102,17 @@ def profile_info(o, now):
     for url in sorted(urls):
         try:
             listing = BeautifulSoup(get(url, allow_redirects=False).content, "html.parser")
+            malformed = False
+            parsed_event = False
             for script in listing.select('script[type="application/ld+json"]'):
-                record = json.loads(script.get_text())
+                try:
+                    record = json.loads(script.get_text())
+                except ValueError:
+                    malformed = True
+                    continue
                 if not isinstance(record, dict) or record.get("@type") != "Event":
                     continue
+                parsed_event = True
                 if str(record.get("eventStatus", "")).endswith("EventCancelled"):
                     continue
                 day, time = split_date(record["startDate"])
@@ -119,6 +126,8 @@ def profile_info(o, now):
                                        venue.get("name") if isinstance(venue, dict) else "",
                                        UNKNOWN, o["id"], url, [o["category"]],
                                        discoveredOnProfile=True, endDate=last, endTime=until if last == day and record.get("endDate") else ""))
+            if malformed and not parsed_event and url in cached:
+                found.append(cached[url])
         except (requests.RequestException, ValueError, TypeError, KeyError):
             if url in cached:
                 found.append(cached[url])

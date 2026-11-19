@@ -27,9 +27,9 @@ function options(id,label,items) {
 const sorted = values => [...new Set(values.filter(Boolean))].sort((a,b)=>a.localeCompare(b));
 function logo(org) {
   const box=node('div','badge');box.setAttribute('aria-hidden','true');
-  box.append(node('span','',org.name.split(/\s+/).filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase()));
+  box.append(node('span','',org.name.split(/\s+/).filter(w=>w && !['of','and','the'].includes(w.toLowerCase())).slice(0,2).map(w=>w[0]).join('').toUpperCase()));
   const url=safeURL(org.logo)||(/^\/?(?:assets|logos)\//.test(org.logo||'')?org.logo:'');
-  if(url && !['careers','living'].includes(org.source)){const img=node('img');img.alt='';img.loading='lazy';img.onerror=()=>img.remove();img.src=url;box.append(img);}
+  if(url && url!==groups.get('university')?.logo){const img=node('img');img.alt='';img.loading='lazy';img.onerror=()=>img.remove();img.src=url;box.append(img);}
   return box;
 }
 function priceType(value) {

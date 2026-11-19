@@ -1,0 +1,8 @@
+logo-concepts/
+__pycache__/
+.DS_Store
+.venv/
+public/event/
+public/events.html
+public/sitemap.xml
+design/

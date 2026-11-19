@@ -1,0 +1,50 @@
+name: Refresh and publish
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: '17 */4 * * *'
+concurrency:
+  group: notts-pages
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Refresh event sources
+        if: github.event_name != 'push'
+        run: |
+          python -m pip install -r requirements.txt
+          python scripts/refresh.py
+      - name: Save refreshed directory
+        if: github.event_name != 'push'
+        run: |
+          git config user.name 'Whats On Notts'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add public/data.json
+          if ! git diff --cached --quiet; then
+            git commit -m 'Refresh event listings'
+            git push
+          fi
+      - run: node --check public/app.js && python scripts/build.py
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+      - uses: actions/deploy-pages@v4
+        id: deploy

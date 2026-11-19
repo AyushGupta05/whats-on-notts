@@ -1,0 +1,10 @@
+{
+  "union": "https://su.nottingham.ac.uk/events",
+  "groups": "https://su.nottingham.ac.uk/activities/list/",
+  "living": "https://studentliving.nottingham.ac.uk/events",
+  "arts": "https://www.lakesidearts.org.uk/wp-content/uploads/whats-on.json",
+  "university": "https://www.nottingham.ac.uk/events/events-all.aspx?Calendar_List_EventDateSpan=All",
+  "careers": "https://www.nottingham.ac.uk/careers/students/events/index.aspx",
+  "computerscience": "https://www.nottingham.ac.uk/computerscience/events.aspx",
+  "psychology": "https://www.nottingham.ac.uk/psychology/newsandevents.aspx"
+}

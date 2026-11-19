@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#171817" />
+    <meta name="theme-color" content="#151617" />
     <title>What’s On Notts · University of Nottingham events</title>
     <meta
       name="description"
@@ -38,62 +38,74 @@
         </nav>
       </div>
     </header>
-    <main>
-      <section class="mast">
-        <div>
+    <main class="calendar">
+      <aside class="identity" aria-label="Calendar location">
+        <img
+          class="cover"
+          src="assets/university-park.webp"
+          alt="Illustration of the Trent Building across Highfields Lake"
+          width="480"
+          height="480"
+        />
+        <div class="location">
+          <strong>Nottingham</strong>
           <p>University of Nottingham</p>
-          <h1 id="title">Society diary</h1>
         </div>
-        <img src="assets/flag.svg" alt="" />
-      </section>
-      <section class="controls" aria-label="Browse events">
-        <label class="search"
-          ><span aria-hidden="true">⌕</span
-          ><input
-            id="query"
-            type="search"
-            aria-label="Search events or groups"
-            placeholder="Search an event or society"
-        /></label>
-        <div class="choices">
-          <label>Organiser<select id="kind"></select></label>
-          <label class="event-only"
-            >Date<select id="when">
-              <option value="">Any date</option>
-              <option value="today">Today</option>
-              <option value="week">Next 7 days</option>
-              <option value="weekend">This weekend</option>
-              <option value="date">Choose date</option>
-            </select></label
-          >
-          <input type="date" id="date" aria-label="Choose date" hidden />
-          <label class="event-only"
-            >Activity<select id="activity">
-              <option value="">All activities</option>
-              <option>Social</option>
-              <option>Workshop</option>
-              <option>Talk</option>
-              <option>Sport</option>
-              <option>Performance</option>
-              <option>Other</option>
-            </select></label
-          >
-          <details id="filters">
-            <summary>More filters</summary>
-            <div>
-              <label>Subject or interest<select id="topic"></select></label
-              ><label>Group<select id="org"></select></label>
-            </div>
-          </details>
-          <button id="reset">Reset</button>
+      </aside>
+      <div class="feed">
+        <div class="feed-heading">
+          <h1 id="title">Society events</h1>
+          <span id="count" aria-live="polite"></span>
         </div>
-      </section>
-      <div class="summary" id="count" aria-live="polite"></div>
-      <div id="list">
-        <p>Loading events…</p>
-        <noscript><a href="events.html">Browse event listings</a></noscript>
+        <section class="controls" aria-label="Browse events">
+          <label class="search"
+            ><span class="search-icon" aria-hidden="true"></span
+            ><input
+              id="query"
+              type="search"
+              aria-label="Search events or groups"
+              placeholder="Search an event or society"
+          /></label>
+          <div class="choices">
+            <label>Organiser<select id="kind"></select></label>
+            <label class="event-only"
+              >Date<select id="when">
+                <option value="">Any date</option>
+                <option value="today">Today</option>
+                <option value="week">Next 7 days</option>
+                <option value="weekend">This weekend</option>
+                <option value="date">Choose date</option>
+              </select></label
+            >
+            <input type="date" id="date" aria-label="Choose date" hidden />
+            <label class="event-only"
+              >Activity<select id="activity">
+                <option value="">All activities</option>
+                <option>Social</option>
+                <option>Workshop</option>
+                <option>Talk</option>
+                <option>Sport</option>
+                <option>Performance</option>
+                <option>Other</option>
+              </select></label
+            >
+            <details id="filters">
+              <summary>Filters</summary>
+              <div>
+                <label>Subject or interest<select id="topic"></select></label
+                ><label>Group<select id="org"></select></label>
+              </div>
+            </details>
+            <button id="reset">Reset</button>
+          </div>
+        </section>
+
+        <div id="list">
+          <p>Loading events…</p>
+          <noscript><a href="events.html">Browse event listings</a></noscript>
+        </div>
+        <button id="more" hidden>Show more ↓</button>
       </div>
-      <button id="more" hidden>Show more ↓</button>
     </main>
     <footer>
       <a href="events.html">Event index</a><span id="updated"></span>

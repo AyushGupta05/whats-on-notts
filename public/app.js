@@ -192,7 +192,8 @@ function card(e, o) {
     render();
   };
   side.append(button);
-  item.append(logo(o), body, side);
+  item.className = "event-card";
+  item.append(body, logo(o), side);
   return item;
 }
 function orgCard(o) {
@@ -241,8 +242,8 @@ function render() {
     : view === "saved"
       ? "Saved events"
       : kind === "Societies"
-        ? "Society diary"
-        : "Campus diary";
+        ? "Society events"
+        : "Campus events";
   get("reset").hidden =
     !q &&
     !topic &&
@@ -252,8 +253,8 @@ function render() {
     kind === (view === "saved" ? "" : "Societies");
   get("filters").querySelector("summary").textContent =
     topic || get("org").value
-      ? "More filters · " + [topic, get("org").value].filter(Boolean).length
-      : "More filters";
+      ? "Filters · " + [topic, get("org").value].filter(Boolean).length
+      : "Filters";
   get("savedcount").textContent = saved.size || "";
   for (const b of document.querySelectorAll("[data-view]"))
     b.setAttribute("aria-pressed", b.dataset.view === view);

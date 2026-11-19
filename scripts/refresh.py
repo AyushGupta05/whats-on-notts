@@ -262,15 +262,16 @@ def living(previous, now):
     if not total:
         raise ValueError("Student Living pagination unavailable")
     count = int(total[1].replace(",", ""))
-    first_cards = first.select("article:has(figure a[href*='/event/'])")
+    def event_cards(document):
+        return [card for card in document.select("article") if card.select_one("figure a[href*='/event/']")]
+
+    first_cards = event_cards(first)
     step = len(first_cards)
     for start in range(0, count, step):
         cards = (
             first_cards
             if not start
-            else page(base, params={"page": start // step + 1}).select(
-                "article:has(figure a[href*='/event/'])"
-            )
+            else event_cards(page(base, params={"page": start // step + 1}))
         )
         with ThreadPoolExecutor(max_workers=3) as pool:
             records.extend(pool.map(details, cards))
@@ -414,8 +415,10 @@ def university(previous, now, source="university"):
             raise ValueError("University calendar pagination cycle")
         seen.add(url)
         s = page(url)
-        for item in s.select(".sys_subitem:has(.sys_events-subheading a)"):
+        for item in s.select(".sys_subitem"):
             a = item.select_one(".sys_events-subheading a")
+            if a is None:
+                continue
             detail = urljoin(base, a["href"])
             date, end = academic_dates(
                 text(item.select_one("dd.sys_events-time, dd.sys_events-date"))

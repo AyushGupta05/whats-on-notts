@@ -29,7 +29,7 @@ function logo(org) {
   const box=node('div','badge');box.setAttribute('aria-hidden','true');
   box.append(node('span','',org.name.split(/\s+/).filter(w=>w && !['of','and','the'].includes(w.toLowerCase())).slice(0,2).map(w=>w[0]).join('').toUpperCase()));
   const url=safeURL(org.logo)||(/^\/?(?:assets|logos)\//.test(org.logo||'')?org.logo:'');
-  if(url && url!==groups.get('university')?.logo){const img=node('img');img.alt='';img.loading='lazy';img.onerror=()=>img.remove();img.src=url;box.append(img);}
+  if(url && !['careers','living','university','computerscience','psychology'].includes(org.source)){const img=node('img');img.alt='';img.loading='lazy';img.onerror=()=>img.remove();img.src=url;box.append(img);}
   return box;
 }
 function priceType(value) {

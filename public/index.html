@@ -47,32 +47,26 @@
           width="480"
           height="480"
         />
-        <div class="location">
-          <strong>Nottingham</strong>
-          <p>University of Nottingham</p>
-        </div>
+        <p class="location">University Park, Nottingham</p>
       </aside>
       <div class="feed">
         <div class="feed-heading">
-          <h1 id="title">Society events</h1>
+          <h1 id="title">Campus events</h1>
           <span id="count" aria-live="polite"></span>
         </div>
         <section class="controls" aria-label="Browse events">
-          <label class="search"
-            ><span class="search-icon" aria-hidden="true"></span
-            ><input
-              id="query"
-              type="search"
-              aria-label="Search events or groups"
-              placeholder="Search an event or society"
-          /></label>
-          <div class="quick" role="group" aria-label="Quick filters">
-            <button type="button" class="chip event-only" data-when="">All dates</button
-            ><button type="button" class="chip event-only" data-when="today">Today</button
-            ><button type="button" class="chip event-only" data-when="weekend">Weekend</button
-            ><button
+          <div class="searchrow">
+            <label class="search"
+              ><span class="search-icon" aria-hidden="true"></span
+              ><input
+                id="query"
+                type="search"
+                aria-label="Search events or groups"
+                placeholder="Search events or societies"
+            /></label>
+            <button
               type="button"
-              class="chip filter-toggle"
+              class="filter-toggle"
               id="filtertoggle"
               aria-expanded="false"
               aria-controls="filterpanel"
@@ -80,34 +74,72 @@
               Filters
             </button>
           </div>
-          <div class="panel" id="filterpanel" hidden>
-            <label>Organiser<select id="kind"></select></label>
-            <label class="event-only"
-              >Date<select id="when">
-                <option value="">Any date</option>
-                <option value="today">Today</option>
-                <option value="week">Next 7 days</option>
-                <option value="weekend">This weekend</option>
-                <option value="date">Choose date</option>
-              </select></label
-            >
-            <label class="event-only" id="datefield" hidden
-              >Pick a day<input type="date" id="date"
-            /></label>
-            <label class="event-only"
-              >Activity<select id="activity">
-                <option value="">All activities</option>
-                <option>Social</option>
-                <option>Workshop</option>
-                <option>Talk</option>
-                <option>Sport</option>
-                <option>Performance</option>
-                <option>Other</option>
-              </select></label
-            >
-            <label>Subject or interest<select id="topic"></select></label>
-            <label>Group<select id="org"></select></label>
-            <button type="button" id="reset">Clear all filters</button>
+          <div class="tabs" role="group" aria-label="Organiser type">
+            <button type="button" data-kind="">All</button
+            ><button type="button" data-kind="Societies">Societies</button
+            ><button type="button" data-kind="Sports">Sport</button
+            ><button type="button" data-kind="Careers">Careers</button
+            ><button type="button" data-kind="University">University</button>
+          </div>
+          <div class="quick" role="group" aria-label="Date">
+            <button type="button" class="chip event-only" data-when="">Any day</button
+            ><button type="button" class="chip event-only" data-when="today">Today</button
+            ><button type="button" class="chip event-only" data-when="weekend">Weekend</button
+            ><button type="button" class="chip event-only" data-when="week">This week</button>
+          </div>
+          <div class="active-filters" id="active" hidden></div>
+
+          <!-- Filter state; the visible tabs, chips and sheet drive these -->
+          <div hidden>
+            <select id="kind"></select>
+            <select id="when">
+              <option value="">Any date</option>
+              <option value="today">Today</option>
+              <option value="week">Next 7 days</option>
+              <option value="weekend">This weekend</option>
+              <option value="date">Choose date</option>
+            </select>
+            <select id="activity">
+              <option value="">All activities</option>
+              <option>Social</option>
+              <option>Workshop</option>
+              <option>Talk</option>
+              <option>Sport</option>
+              <option>Performance</option>
+              <option>Other</option>
+            </select>
+          </div>
+
+          <div class="scrim" id="scrim" hidden></div>
+          <div
+            class="sheet"
+            id="filterpanel"
+            role="dialog"
+            aria-labelledby="sheet-title"
+            hidden
+          >
+            <div class="sheet-head">
+              <h2 id="sheet-title">Filters</h2>
+              <button type="button" class="close" id="sheetclose" aria-label="Close filters">✕</button>
+            </div>
+            <fieldset class="event-only">
+              <legend>Activity</legend>
+              <div class="pills">
+                <button type="button" class="chip" data-activity="">Any</button
+                ><button type="button" class="chip" data-activity="Social">Social</button
+                ><button type="button" class="chip" data-activity="Workshop">Workshop</button
+                ><button type="button" class="chip" data-activity="Talk">Talk</button
+                ><button type="button" class="chip" data-activity="Sport">Sport</button
+                ><button type="button" class="chip" data-activity="Performance">Performance</button>
+              </div>
+            </fieldset>
+            <label class="field">Organiser<select id="org"></select></label>
+            <label class="field">Subject or interest<select id="topic"></select></label>
+            <label class="field event-only">On a specific day<input type="date" id="date" /></label>
+            <div class="sheet-foot">
+              <button type="button" id="reset">Clear all</button>
+              <button type="button" class="apply" id="apply">Show events</button>
+            </div>
           </div>
         </section>
 

@@ -29,7 +29,7 @@ function logo(org) {
   const box=node('div','badge');box.setAttribute('aria-hidden','true');
   box.append(node('span','',org.name.split(/\s+/).filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase()));
   const url=safeURL(org.logo)||(/^\/?(?:assets|logos)\//.test(org.logo||'')?org.logo:'');
-  if(url){const img=node('img');img.alt='';img.loading='lazy';img.onerror=()=>img.remove();img.src=url;box.append(img);}
+  if(url && !['careers','living'].includes(org.source)){const img=node('img');img.alt='';img.loading='lazy';img.onerror=()=>img.remove();img.src=url;box.append(img);}
   return box;
 }
 function priceType(value) {
@@ -38,7 +38,7 @@ function priceType(value) {
   if (/£\s*\d|paid/i.test(p)) return 'paid';
   return 'unknown';
 }
-function eventKey(e){return [e.organiser,e.url,e.date,e.time,e.title].join('|');}
+function eventKey(e){return [e.organiser,e.url,e.date,e.time].join('|');}
 function card(e,o) {
   const item=node('article'),body=node('div'),side=node('div','side');
   const title=node('h3');title.append(link(e.title,e.url));
@@ -46,10 +46,10 @@ function card(e,o) {
   const tags=node('div','tags');
   tags.append(node('span',priceType(e.price)==='free'?'chip free':'chip',e.price||'Price unlisted'));
   body.append(tags); const key=eventKey(e);
-  const button=node('button','save',saved.has(key)?'★ Saved':'☆ Save');
+  const button=node('button','save',saved.has(key)?'★':'☆');
   button.setAttribute('aria-label',(saved.has(key)?'Unsave ':'Save ')+e.title);button.setAttribute('aria-pressed',saved.has(key));
   button.onclick=()=>{if(saved.has(key))saved.delete(key);else saved.add(key);try{localStorage.setItem('notts-saved',JSON.stringify([...saved]));}catch{}render();};
-  side.append(logo(o),button);item.append(body,side);return item;
+  side.append(button,logo(o));item.append(body,side);return item;
 }
 function orgCard(o){
   const item=node('article'),body=node('div'),title=node('h3'),links=node('div','org-links');
@@ -94,7 +94,7 @@ function render(){
   for(const entry of matches.slice(0,limit)){
     if(directory){list.append(orgCard(entry));continue;}
     const displayDate=entry.date<today?today:entry.date;
-    if(prev!==displayDate){prev=displayDate;const relative=prev===today?'Today':prev===after(today,1)?'Tomorrow':'';list.append(node('h2','day',relative?relative+' · '+asDate(prev).toLocaleDateString('en-GB',{day:'numeric',month:'short'}):dateLabel(prev)));}
+    if(prev!==displayDate){prev=displayDate;const relative=prev===today?'Today':prev===after(today,1)?'Tomorrow':'';list.append(node('h2','day',relative?relative+' · '+asDate(prev).toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',timeZone:'Europe/London'}):dateLabel(prev)));}
     list.append(card(entry,groups.get(entry.organiser)));
   }
   get('count').textContent=matches.length+' '+(directory?'organiser':'event')+(matches.length===1?'':'s');
@@ -107,6 +107,8 @@ async function start(){
   const data=await response.json();
   groups=new Map(data.organisers.map(o=>[o.id,o]));
   events=data.events.slice().sort((a,b)=>a.date.localeCompare(b.date)||(a.time||'99').localeCompare(b.time||'99')||a.title.localeCompare(b.title));
+  const today=dayKey(new Date());
+  saved=new Set(events.filter(e=>(e.endDate||e.date)>=today && (saved.has(eventKey(e)) || saved.has(eventKey(e)+'|'+e.title))).map(eventKey));
   const orgs=[...groups.values()];
   options('kind','All types',sorted(orgs.map(o=>o.group)).map(k=>[k,k]));
   options('topic','All subjects & interests',sorted([...orgs.map(o=>o.category),...events.flatMap(e=>e.tags||[])]).map(k=>[k,k]));

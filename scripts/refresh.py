@@ -524,6 +524,8 @@ def main():
             f"{source}: {len(orgs)} organisers, {len(events)} source occurrences",
             flush=True,
         )
+    if len(failed) == len(statuses):
+        raise RuntimeError("Every source failed; keeping the previous snapshot")
     if not all_events:
         raise RuntimeError("Empty catalogue")
     output = {
@@ -539,7 +541,9 @@ def main():
         json.dump(output, f, ensure_ascii=False, separators=(",", ":"))
     os.replace(f.name, OUTPUT)
     if failed:
-        raise SystemExit("Sources requiring attention: " + ", ".join(failed))
+        print(
+            "::warning::Sources requiring attention: " + ", ".join(failed), flush=True
+        )
 
 
 if __name__ == "__main__":

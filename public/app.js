@@ -233,32 +233,62 @@ function render() {
     topic = get("topic").value;
   for (const el of document.querySelectorAll(".event-only"))
     el.hidden = directory;
-  get("datefield").hidden = directory || get("when").value !== "date";
   get("title").textContent = directory
-    ? "Group directory"
+    ? "Groups"
     : view === "saved"
       ? "Saved events"
-      : kind === "Societies"
-        ? "Society events"
-        : "Campus events";
-  get("reset").hidden =
-    !q &&
-    !topic &&
-    !get("org").value &&
-    !get("when").value &&
-    !get("activity").value &&
-    kind === (view === "saved" ? "" : "Societies");
-  const active = [
-    kind !== (view === "saved" ? "" : "Societies"),
-    !directory && get("activity").value,
-    !directory && get("when").value === "date",
-    topic,
-    get("org").value,
-  ].filter(Boolean).length;
-  get("filtertoggle").textContent = active ? "Filters · " + active : "Filters";
-  get("filtertoggle").classList.toggle("has-active", active > 0);
+      : {
+          Societies: "Society events",
+          Sports: "Sport",
+          Careers: "Careers events",
+          University: "University events",
+        }[kind] || "Campus events";
+  // Sheet filters (the tabs and date chips are always visible, so not counted)
+  const pills = [];
+  if (!directory && get("activity").value)
+    pills.push([get("activity").value, () => (get("activity").value = "")]);
+  if (topic) pills.push([topic, () => (get("topic").value = "")]);
+  if (!directory && get("when").value === "date" && get("date").value)
+    pills.push([
+      asDate(get("date").value).toLocaleDateString("en-GB", {
+        weekday: "short",
+        day: "numeric",
+        month: "short",
+        timeZone: "Europe/London",
+      }),
+      () => {
+        get("when").value = "";
+        get("date").value = "";
+      },
+    ]);
+  get("filtertoggle").textContent = pills.length
+    ? "Filters · " + pills.length
+    : "Filters";
+  get("filtertoggle").classList.toggle("has-active", pills.length > 0);
+  const activeRow = get("active");
+  activeRow.replaceChildren(
+    ...pills.map(([label, clear]) => {
+      const pill = node("button", "pill", label);
+      pill.type = "button";
+      pill.setAttribute("aria-label", "Remove filter: " + label);
+      pill.onclick = () => {
+        clear();
+        limit = 45;
+        render();
+      };
+      return pill;
+    }),
+  );
+  activeRow.hidden = !pills.length;
   for (const chip of document.querySelectorAll("[data-when]"))
     chip.setAttribute("aria-pressed", chip.dataset.when === get("when").value);
+  for (const tab of document.querySelectorAll("[data-kind]"))
+    tab.setAttribute("aria-pressed", tab.dataset.kind === kind);
+  for (const chip of document.querySelectorAll("[data-activity]"))
+    chip.setAttribute(
+      "aria-pressed",
+      chip.dataset.activity === get("activity").value,
+    );
   get("savedcount").textContent = saved.size || "";
   for (const b of document.querySelectorAll("[data-view]"))
     b.setAttribute("aria-pressed", b.dataset.view === view);
@@ -340,6 +370,9 @@ function render() {
     " " +
     (directory ? "organiser" : "event") +
     (matches.length === 1 ? "" : "s");
+  get("apply").textContent = matches.length
+    ? "Show " + get("count").textContent
+    : "No matches";
   if (!matches.length)
     list.append(
       node(
@@ -386,9 +419,23 @@ function reset() {
     "activity",
   ])
     get(id).value = "";
-  get("kind").value = view === "saved" ? "" : "Societies";
   groupOptions();
   limit = 45;
+}
+function clearSheet() {
+  get("activity").value = "";
+  get("topic").value = "";
+  get("date").value = "";
+  if (get("when").value === "date") get("when").value = "";
+  limit = 45;
+}
+function setSheet(open) {
+  get("filterpanel").hidden = !open;
+  get("scrim").hidden = !open;
+  get("filtertoggle").setAttribute("aria-expanded", open);
+  document.body.classList.toggle("sheet-open", open);
+  if (open) get("sheetclose").focus();
+  else get("filtertoggle").focus();
 }
 async function start() {
   const response = await fetch("data.json", { cache: "no-cache" });
@@ -432,21 +479,30 @@ async function start() {
   ])
     get(id).addEventListener("input", () => {
       if (id === "kind") groupOptions();
+      if (id === "date") get("when").value = get("date").value ? "date" : "";
       limit = 45;
       render();
     });
-  for (const chip of document.querySelectorAll("[data-when]"))
-    chip.onclick = () => {
-      get("when").value = chip.dataset.when;
-      get("when").dispatchEvent(new Event("input"));
-    };
-  get("filtertoggle").onclick = () => {
-    const panel = get("filterpanel");
-    panel.hidden = !panel.hidden;
-    get("filtertoggle").setAttribute("aria-expanded", !panel.hidden);
+  const pick = (selector, id, key) => {
+    for (const button of document.querySelectorAll(selector))
+      button.onclick = () => {
+        get(id).value = button.dataset[key];
+        if (id === "when") get("date").value = "";
+        get(id).dispatchEvent(new Event("input"));
+      };
   };
+  pick("[data-when]", "when", "when");
+  pick("[data-kind]", "kind", "kind");
+  pick("[data-activity]", "activity", "activity");
+  get("filtertoggle").onclick = () => setSheet(get("filterpanel").hidden);
+  get("sheetclose").onclick = () => setSheet(false);
+  get("apply").onclick = () => setSheet(false);
+  get("scrim").onclick = () => setSheet(false);
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !get("filterpanel").hidden) setSheet(false);
+  });
   get("reset").onclick = () => {
-    reset();
+    clearSheet();
     render();
   };
   get("more").onclick = () => {
